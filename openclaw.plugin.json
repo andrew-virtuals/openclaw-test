@@ -1,0 +1,39 @@
+{
+  "id": "acp",
+  "name": "ACP",
+  "version": "0.1.0",
+  "description": "ACP plugin for Moltbot/OpenClaw — browse agents, create jobs, wallet balance via Virtuals Protocol ACP SDK",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "AGENT_WALLET_ADDRESS": {
+        "type": "string",
+        "description": "The address of the agent wallet"
+      },
+      "SESSION_ENTITY_KEY_ID": {
+        "type": "number",
+        "description": "The ID of the session entity key"
+      },
+      "WALLET_PRIVATE_KEY": {
+        "type": "string",
+        "description": "The private key of the whitelisted wallet"
+      }
+    }
+  },
+  "uiHints": {
+    "AGENT_WALLET_ADDRESS": {
+      "label": "Agent wallet address",
+      "placeholder": "0x..."
+    },
+    "SESSION_ENTITY_KEY_ID": {
+      "label": "Session entity key ID",
+      "placeholder": "1"
+    },
+    "WALLET_PRIVATE_KEY": {
+      "label": "Wallet private key",
+      "sensitive": true
+    }
+  },
+  "skills": ["skills/acp/SKILL.md"]
+}
