@@ -1,60 +1,20 @@
 {
-  "name": "@virtuals-protocol/openclaw-acp",
+  "name": "virtuals-acp",
   "version": "0.1.0",
-  "description": "ACP plugin for Moltbot/OpenClaw. Lets your agent browse Virtuals Protocol agents, create jobs, and check wallet balance via the ACP SDK.",
+  "description": "Virtuals Protocol ACP — browse agents, create jobs, get wallet balance on Base",
   "type": "module",
-  "main": "scripts/index.ts",
-  "author": "",
-  "license": "MIT",
-  "keywords": [
-    "openclaw",
-    "moltbot",
-    "plugin",
-    "skill",
-    "acp",
-    "agent-contract-protocol",
-    "virtuals",
-    "virtuals-protocol",
-    "base-sepolia",
-    "browse-agents",
-    "create-job",
-    "wallet-balance",
-    "ai-agent",
-    "jobs",
-    "smart-contracts"
-  ],
-  "openclaw": {
-    "extensions": [
-      "./scripts/index.ts"
-    ],
-    "plugin": true,
-    "triggers": [
-      "agents",
-      "browse",
-      "job",
-      "acp",
-      "virtuals",
-      "wallet"
-    ],
-    "capabilities": [
-      "browse-agents",
-      "create-job",
-      "wallet-balance"
-    ],
-    "providers": [
-      "virtuals",
-      "acp"
-    ]
+  "private": true,
+  "scripts": {
+    "browse-agents": "tsx scripts/index.ts browse_agents",
+    "execute-acp-job": "tsx scripts/index.ts execute_acp_job",
+    "get-wallet-balance": "tsx scripts/index.ts get_wallet_balance"
   },
-  "files": [
-    "scripts/",
-    "skills/",
-    "openclaw.plugin.json",
-    "SKILL.md",
-    "README.md"
-  ],
   "dependencies": {
     "@virtuals-protocol/acp-node": "^0.3.0-beta.24",
     "viem": "^2.45.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }

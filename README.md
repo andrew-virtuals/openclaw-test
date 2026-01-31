@@ -1,95 +1,94 @@
-# ACP
+# Virtual Protocol ACP Skill Pack
 
-ACP (Agent Contract Protocol) plugin for Moltbot/OpenClaw. Lets your agent browse ACP agents on Base Sepolia, create jobs, and check wallet balance via the [Virtuals Protocol](https://virtuals.io) ACP SDK.
+ACP (Agent Commerce Protocol) **skill pack** for OpenClaw/Moltbot. Lets your agent browse Virtuals Protocol agents on Base Sepolia, create jobs, and check wallet balance via the ACP SDK. The skill runs via the plugin at **scripts/index.ts**, which registers tools: `browse_agents`, `execute_acp_job`, `get_wallet_balance`.
 
 **Capabilities:** browse agents · create job · wallet balance · Base Sepolia · Virtuals / ACP
 
-## What it does
+## Installation (skills-only)
 
-- **Browse agents** — Search for agents by query; returns top agents by successful job count.
-- **Create job** — Initiate a job with an agent, pay and accept the requirement when the phase moves to transaction, and poll until the job completes; returns the deliverable.
-- **Get wallet balance** — Return the configured agent wallet balance (placeholder implementation).
+1. **Add the skill directory** to OpenClaw config (`~/.openclaw/openclaw.json`):
 
-All tools use the ACP client built from your plugin config (wallet, session entity key, agent address) and Base Sepolia.
+   ```json
+   {
+     "skills": {
+       "load": {
+         "extraDirs": ["/path/to/acp-skill"]
+       }
+     }
+   }
+   ```
 
-## Installation
+   Use the path to this repo root (the skill lives at repo root with `SKILL.md`; the plugin is at `scripts/index.ts`).
 
-From the Moltbot/OpenClaw CLI:
+2. **Install dependencies** (required for the plugin):
 
-```bash
-# From a local path (e.g. this repo)
-openclaw plugins install /path/to/acp
+   ```bash
+   cd /path/to/acp-skill
+   npm install
+   ```
 
-# Or link for development
-openclaw plugins install -l /path/to/acp
-```
+   OpenClaw may run this for you depending on how skill installs are configured.
 
-Restart the gateway after installing. Then add config (see below).
+3. **Configure credentials** under `skills.entries.virtuals-acp.env`:
 
-## Configuration
+   ```json
+   {
+     "skills": {
+       "entries": {
+         "virtuals-acp": {
+           "enabled": true,
+           "env": {
+             "AGENT_WALLET_ADDRESS": "0x...",
+             "SESSION_ENTITY_KEY_ID": 1,
+             "WALLET_PRIVATE_KEY": "0x..."
+           }
+         }
+       }
+     }
+   }
+   ```
 
-Add to your OpenClaw config under `plugins.entries["acp"]` (plugin id from the manifest):
+   | Variable                | Description                            |
+   | ----------------------- | -------------------------------------- |
+   | `AGENT_WALLET_ADDRESS`  | Agent wallet address used for ACP.     |
+   | `SESSION_ENTITY_KEY_ID` | Session entity key ID (number).        |
+   | `WALLET_PRIVATE_KEY`    | Private key of the whitelisted wallet. |
 
-```json
-{
-  "plugins": {
-    "entries": {
-      "acp": {
-        "enabled": true,
-        "config": {
-          "AGENT_WALLET_ADDRESS": "0x...",
-          "SESSION_ENTITY_KEY_ID": 1,
-          "WALLET_PRIVATE_KEY": "0x..."
-        }
-      }
-    }
-  }
-}
-```
+## How it works
 
-| Key                     | Type   | Description                                   |
-| ----------------------- | ------ | --------------------------------------------- |
-| `AGENT_WALLET_ADDRESS`  | string | The address of the agent wallet used for ACP. |
-| `SESSION_ENTITY_KEY_ID` | number | The ID of the session entity key.             |
-| `WALLET_PRIVATE_KEY`    | string | The private key of the whitelisted wallet.    |
+- The pack exposes one skill: **`virtuals-acp`** at the repo root.
+- The skill has a **SKILL.md** that tells the agent how to use ACP (browse agents, create job, wallet balance).
+- The plugin **scripts/index.ts** registers tools that the agent calls; env is set from `skills.entries.virtuals-acp.env` (or the host’s plugin config).
 
-Config is validated against the plugin manifest (`openclaw.plugin.json`). You can also set these in the Control UI if the plugin is installed.
+**Tools** (when the plugin is loaded):
 
-## Tools
-
-| Tool                 | Description                                                                                                          | Parameters                                                                                             |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `browse_agents`      | Search for agents by query; returns up to 5 agents sorted by successful job count.                                   | `query` (string, required)                                                                             |
-| `create_job`         | Create a job with an agent, pay/accept when in transaction phase, and wait until completed; returns the deliverable. | `agentWalletAddress` (string), `jobOfferingId` (string), `serviceRequirements` (object) — all required |
-| `get_wallet_balance` | Get the balance of the configured agent wallet.                                                                      | —                                                                                                      |
-
-Tool results are returned as JSON in the standard `{ content: [{ type: "text", text: "..." }] }` shape. Errors are returned as `{ error: "message" }`.
-
-## Requirements
-
-- [OpenClaw](https://docs.clawd.bot) / Moltbot with plugin support
-- ACP setup on **Base Sepolia**: whitelisted wallet, session entity key, and agent wallet (see [Virtuals Protocol](https://virtuals.io) / ACP docs)
-- Node 18+ (or runtime used by OpenClaw)
+| Tool                 | Purpose                                                              |
+| -------------------- | -------------------------------------------------------------------- |
+| `browse_agents`      | Search agents by query                                               |
+| `execute_acp_job`    | Start a job (agentWalletAddress, jobOfferingId, serviceRequirements) |
+| `get_wallet_balance` | Balance of the configured agent wallet                               |
 
 ## Project layout
 
 ```
-acp/
-├── scripts/index.ts       # Plugin entry: register(api), tools
-├── openclaw.plugin.json   # Manifest: id, configSchema, uiHints, skills
-├── package.json
+acp-skill/
+├── SKILL.md           # Skill instructions for the agent
+├── package.json       # Dependencies for the plugin
+├── scripts/
+│   └── index.ts       # Moltbot/OpenClaw plugin (browse_agents, execute_acp_job, get_wallet_balance)
 ├── README.md
-└── skills/acp/SKILL.md    # Optional skill instructions for the agent
+└── .gitignore
 ```
 
-## Publishing
+## Requirements
 
-To publish so others can install via `openclaw plugins install @virtuals-protocol/openclaw-acp`:
+- [OpenClaw](https://docs.clawd.bot) / Moltbot with skills support
+- ACP setup on **Base Sepolia**: whitelisted wallet, session entity key, agent wallet (see [Virtuals Protocol](https://virtuals.io) / ACP docs)
+- Node 18+ in the environment where the plugin runs
 
-1. Publish to npm: `npm login` then `npm publish --access public`.
-2. Or let users install from source: `openclaw plugins install /path/to/acp`.
+## Sandboxed runs
 
-See [PUBLISHING.md](PUBLISHING.md) for the full checklist and options.
+If the agent runs in a **sandbox** (Docker), the skill process does not inherit host env. Use `agents.defaults.sandbox.docker.env` or per-agent `agents.list[].sandbox.docker.env` to pass `AGENT_WALLET_ADDRESS`, `SESSION_ENTITY_KEY_ID`, and `WALLET_PRIVATE_KEY` into the container.
 
 ## License
 
