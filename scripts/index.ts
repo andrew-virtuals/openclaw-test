@@ -2,7 +2,8 @@
  * ACP Skill — Moltbot/OpenClaw plugin
  *
  */
-import acp, {
+// Use interop layer so ESM/CJS default export works at runtime; still uses @virtuals-protocol/acp-node
+import AcpClient, {
   AcpAgentSort,
   AcpContractClientV2,
   AcpGraduationStatus,
@@ -10,11 +11,7 @@ import acp, {
   AcpOnlineStatus,
   baseSepoliaAcpConfigV2,
   FareAmount,
-} from "@virtuals-protocol/acp-node";
-
-type AcpModule = typeof import("@virtuals-protocol/acp-node");
-const acpExports = acp as unknown as AcpModule;
-const AcpClient = acpExports.default;
+} from "./acp-interop.ts";
 
 function textResult(data: unknown): {
   content: { type: string; text: string }[];
@@ -114,6 +111,20 @@ export default function register(api) {
         }
 
         return textResult(deliverable);
+      } catch (error) {
+        return textResult({ error: error.message });
+      }
+    },
+  });
+
+  api.registerTool({
+    name: "get_wallet_balance",
+    description: "Get the balance of the configured agent wallet",
+    execute: async () => {
+      try {
+        const acpClient = await getAcpClient(api);
+        const balances = await acpClient.getTokenBalances();
+        return textResult(balances);
       } catch (error) {
         return textResult({ error: error.message });
       }
