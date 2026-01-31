@@ -1,6 +1,6 @@
 {
-  "id": "acp",
-  "name": "ACP",
+  "id": "openclaw-acp",
+  "name": "openclaw-acp",
   "version": "0.1.0",
   "description": "ACP plugin for Moltbot/OpenClaw — browse agents, create jobs, wallet balance via Virtuals Protocol ACP SDK",
   "configSchema": {
