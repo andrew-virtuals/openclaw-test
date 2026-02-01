@@ -7,17 +7,18 @@
  *   execute_acp_job "<agentWalletAddress>" "<jobOfferingId>" '<serviceRequirementsJson>'
  *   get_wallet_balance
  *
- * Requires env: AGENT_WALLET_ADDRESS, SESSION_ENTITY_KEY_ID, WALLET_PRIVATE_KEY
+ * Requires env (or .env): AGENT_WALLET_ADDRESS, SESSION_ENTITY_KEY_ID, WALLET_PRIVATE_KEY
  * Output: single JSON value to stdout. On error: {"error":"message"} and exit 1.
  */
+import "dotenv/config";
 import AcpClient, {
-  baseSepoliaAcpConfigV2,
   FareAmount,
   AcpContractClientV2,
   AcpAgentSort,
   AcpGraduationStatus,
   AcpOnlineStatus,
   AcpJobPhases,
+  baseAcpX402ConfigV2,
 } from "@virtuals-protocol/acp-node";
 
 type AcpConfig = {
@@ -25,6 +26,8 @@ type AcpConfig = {
   SESSION_ENTITY_KEY_ID: number;
   AGENT_WALLET_ADDRESS: string;
 };
+
+type Client = InstanceType<typeof AcpClient>;
 
 function getConfigFromEnv(): AcpConfig {
   const walletKey = process.env.WALLET_PRIVATE_KEY;
@@ -42,14 +45,12 @@ function getConfigFromEnv(): AcpConfig {
   };
 }
 
-async function buildAcpClient(
-  config: AcpConfig
-): Promise<InstanceType<typeof AcpClient>> {
+async function buildAcpClient(config: AcpConfig): Promise<Client> {
   const acpContractClient = await AcpContractClientV2.build(
     config.WALLET_PRIVATE_KEY as `0x${string}`,
     config.SESSION_ENTITY_KEY_ID,
     config.AGENT_WALLET_ADDRESS as `0x${string}`,
-    baseSepoliaAcpConfigV2
+    baseAcpX402ConfigV2
   );
   // @ts-expect-error AcpClient constructor shape
   return new AcpClient.default({
@@ -58,135 +59,138 @@ async function buildAcpClient(
   });
 }
 
-async function browseAgents(
-  acpClient: InstanceType<typeof AcpClient>,
-  query: string
-) {
-  const relevantAgents = await acpClient.browseAgents(query, {
+function out(data: unknown): void {
+  console.log(JSON.stringify(data));
+}
+
+function cliErr(message: string): never {
+  out({ error: message });
+  process.exit(1);
+}
+
+/** Build client from env, run fn(client), output result; on error output JSON error and exit 1. */
+async function withClient<T>(
+  fn: (client: Client) => Promise<T>
+): Promise<void> {
+  try {
+    const config = getConfigFromEnv();
+    const client = await buildAcpClient(config);
+    const result = await fn(client);
+    out(result ?? {});
+  } catch (e) {
+    cliErr(e instanceof Error ? e.message : String(e));
+  }
+}
+
+async function browseAgents(client: Client, query: string) {
+  const agents = await client.browseAgents(query, {
     sortBy: [AcpAgentSort.SUCCESSFUL_JOB_COUNT],
     topK: 5,
     graduationStatus: AcpGraduationStatus.ALL,
     onlineStatus: AcpOnlineStatus.ALL,
   });
 
-  return (relevantAgents || []).map((agent) => ({
+  if (!agents || agents.length === 0) {
+    return cliErr("No agents found");
+  }
+
+  return agents.map((agent) => ({
     id: agent.id,
     name: agent.name,
     walletAddress: agent.walletAddress,
     description: agent.description,
-    jobOfferings: (agent.jobOfferings || []).map((jobOffering) => ({
-      name: jobOffering.name,
-      price: jobOffering.price,
-      priceType: jobOffering.priceType,
-      requirement: jobOffering.requirement,
+    jobOfferings: (agent.jobOfferings || []).map((job) => ({
+      name: job.name,
+      price: job.price,
+      priceType: job.priceType,
+      requirement: job.requirement,
     })),
   }));
 }
 
-function out(data: unknown): void {
-  console.log(JSON.stringify(data));
+async function runExecuteAcpJob(
+  client: Client,
+  agentWalletAddress: string,
+  serviceRequirements: Record<string, unknown>
+): Promise<unknown> {
+  const jobId = await client.initiateJob(
+    agentWalletAddress as `0x${string}`,
+    serviceRequirements,
+    new FareAmount(0, baseAcpX402ConfigV2.baseFare)
+  );
+  for (;;) {
+    const job = await client.getJobById(jobId);
+    const latestMemo = job?.latestMemo;
+    if (
+      job?.phase === AcpJobPhases.NEGOTIATION &&
+      latestMemo?.nextPhase === AcpJobPhases.TRANSACTION
+    ) {
+      await job?.payAndAcceptRequirement();
+    }
+    if (job?.phase === AcpJobPhases.COMPLETED) {
+      return job?.deliverable;
+    }
+    await new Promise((r) => setTimeout(r, 10000));
+  }
 }
 
-function cliErr(message: string): void {
-  out({ error: message });
-  process.exitCode = 1;
-}
+const USAGE =
+  "Usage: browse_agents <query> | execute_acp_job <agentWalletAddress> <serviceRequirementsJson> | get_wallet_balance";
+
+type ToolHandler = {
+  validate: (args: string[]) => string | null;
+  run: (client: Client, args: string[]) => Promise<unknown>;
+};
+
+const TOOLS: Record<string, ToolHandler> = {
+  browse_agents: {
+    validate: (args) =>
+      !args[0]?.trim() ? 'Usage: browse_agents "<query>"' : null,
+    run: (client, args) => browseAgents(client, args[0]!.trim()),
+  },
+  execute_acp_job: {
+    validate: (args) => {
+      if (!args[0]?.trim() || !args[1]?.trim())
+        return "Usage: execute_acp_job \"<agentWalletAddress>\" '<serviceRequirementsJson>'";
+      if (args[2]) {
+        try {
+          JSON.parse(args[2]);
+        } catch {
+          return "Invalid serviceRequirements JSON (third argument)";
+        }
+      }
+      return null;
+    },
+    run: (client, args) => {
+      const serviceRequirements = args[1]
+        ? (JSON.parse(args[2]) as Record<string, unknown>)
+        : {};
+      return runExecuteAcpJob(client, args[0]!.trim(), serviceRequirements);
+    },
+  },
+  get_wallet_balance: {
+    validate: () => null,
+    run: (client) => client.getTokenBalances(),
+  },
+};
 
 async function runCli(): Promise<void> {
   const [, , tool = "", ...args] = process.argv;
-
-  if (tool === "browse_agents") {
-    const query = args[0]?.trim();
-    if (!query) {
-      cliErr('Usage: npx tsx scripts/index.ts browse_agents "<query>"');
-      return;
-    }
-    try {
-      const config = getConfigFromEnv();
-      const client = await buildAcpClient(config);
-      const result = await browseAgents(client, query);
-      out(result);
-    } catch (e) {
-      cliErr(e instanceof Error ? e.message : String(e));
-    }
-    return;
+  const handler = TOOLS[tool];
+  if (!handler) {
+    cliErr(USAGE);
   }
-
-  if (tool === "execute_acp_job") {
-    const agentWalletAddress = args[0]?.trim();
-    const jobOfferingId = args[1]?.trim();
-    let serviceRequirements: Record<string, unknown> = {};
-    try {
-      serviceRequirements = args[2]
-        ? (JSON.parse(args[2]) as Record<string, unknown>)
-        : {};
-    } catch {
-      cliErr("Invalid serviceRequirements JSON (third argument)");
-      return;
-    }
-    if (!agentWalletAddress || !jobOfferingId) {
-      cliErr(
-        'Usage: npx tsx scripts/index.ts execute_acp_job "<agentWalletAddress>" "<jobOfferingId>" \'<serviceRequirementsJson>\''
-      );
-      return;
-    }
-    try {
-      const config = getConfigFromEnv();
-      const client = await buildAcpClient(config);
-      const jobId = await client.initiateJob(
-        agentWalletAddress as `0x${string}`,
-        serviceRequirements,
-        new FareAmount(0, baseSepoliaAcpConfigV2.baseFare)
-      );
-      let deliverable: unknown;
-      for (;;) {
-        const job = await client.getJobById(jobId);
-        const latestMemo = job?.latestMemo;
-        if (
-          job?.phase === AcpJobPhases.NEGOTIATION &&
-          latestMemo?.nextPhase === AcpJobPhases.TRANSACTION
-        ) {
-          await job?.payAndAcceptRequirement();
-        }
-        if (job?.phase === AcpJobPhases.COMPLETED) {
-          deliverable = job?.deliverable;
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 10000));
-      }
-      out(deliverable ?? {});
-    } catch (e) {
-      cliErr(e instanceof Error ? e.message : String(e));
-    }
-    return;
-  }
-
-  if (tool === "get_wallet_balance") {
-    try {
-      const config = getConfigFromEnv();
-      const client = await buildAcpClient(config);
-      const balances = await client.getTokenBalances();
-      out(balances ?? {});
-    } catch (e) {
-      cliErr(e instanceof Error ? e.message : String(e));
-    }
-    return;
-  }
-
-  cliErr(
-    "Unknown tool. Use: browse_agents <query> | execute_acp_job <agentWalletAddress> <jobOfferingId> <serviceRequirementsJson> | get_wallet_balance"
-  );
+  const err = handler.validate(args);
+  if (err) cliErr(err);
+  await withClient((client) => handler.run(client, args));
 }
 
-const cliTools = ["browse_agents", "execute_acp_job", "get_wallet_balance"];
 const toolArg = process.argv[2] ?? "";
-if (cliTools.includes(toolArg)) {
+if (toolArg in TOOLS) {
   runCli().catch((e) => {
     out({ error: e instanceof Error ? e.message : String(e) });
     process.exit(1);
   });
 } else {
-  cliErr(
-    "Usage: browse_agents <query> | execute_acp_job <agentWalletAddress> <jobOfferingId> <serviceRequirementsJson> | get_wallet_balance"
-  );
+  cliErr(USAGE);
 }

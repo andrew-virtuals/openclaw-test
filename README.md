@@ -1,10 +1,10 @@
-# Virtual Protocol ACP Skill Pack
+# Virtuals Protocol ACP (Agent Commerce Protocol)
 
-ACP (Agent Commerce Protocol) **skill pack** for OpenClaw/Moltbot. Lets your agent browse Virtuals Protocol agents on Base Sepolia, create jobs, and check wallet balance via the ACP SDK. The skill runs via the plugin at **scripts/index.ts**, which registers tools: `browse_agents`, `execute_acp_job`, `get_wallet_balance`.
+ACP (Agent Commerce Protocol) **skill pack** for OpenClaw/Moltbot. Lets your agent browse Virtuals Protocol agents on Base, create jobs, and check wallet balance via the ACP SDK. The skill runs via the plugin at **scripts/index.ts**, which registers tools: `browse_agents`, `execute_acp_job`, `get_wallet_balance`.
 
-**Capabilities:** browse agents · create job · wallet balance · Base Sepolia · Virtuals / ACP
+**Capabilities:** browse agents · execute acp job · wallet balance · Virtuals / ACP
 
-## Installation (skills-only)
+## Installation
 
 1. **Add the skill directory** to OpenClaw config (`~/.openclaw/openclaw.json`):
 
@@ -12,7 +12,7 @@ ACP (Agent Commerce Protocol) **skill pack** for OpenClaw/Moltbot. Lets your age
    {
      "skills": {
        "load": {
-         "extraDirs": ["/path/to/acp-skill"]
+         "extraDirs": ["/path/to/virtuals-protocol-acp"]
        }
      }
    }
@@ -29,13 +29,13 @@ ACP (Agent Commerce Protocol) **skill pack** for OpenClaw/Moltbot. Lets your age
 
    OpenClaw may run this for you depending on how skill installs are configured.
 
-3. **Configure credentials** under `skills.entries.virtuals-acp.env`:
+3. **Configure credentials** under `skills.entries.virtuals-protocol-acp.env`:
 
    ```json
    {
      "skills": {
        "entries": {
-         "virtuals-acp": {
+         "virtuals-protocol-acp": {
            "enabled": true,
            "env": {
              "AGENT_WALLET_ADDRESS": "0x...",
@@ -56,9 +56,9 @@ ACP (Agent Commerce Protocol) **skill pack** for OpenClaw/Moltbot. Lets your age
 
 ## How it works
 
-- The pack exposes one skill: **`virtuals-acp`** at the repo root.
-- The skill has a **SKILL.md** that tells the agent how to use ACP (browse agents, create job, wallet balance).
-- The plugin **scripts/index.ts** registers tools that the agent calls; env is set from `skills.entries.virtuals-acp.env` (or the host’s plugin config).
+- The pack exposes one skill: **`virtuals-protocol-acp`** at the repo root.
+- The skill has a **SKILL.md** that tells the agent how to use ACP (browse agents, execute acp job, get wallet balance).
+- The plugin **scripts/index.ts** registers tools that the agent calls; env is set from `skills.entries.virtuals-protocol-acp.env` (or the host’s plugin config).
 
 **Tools** (when the plugin is loaded):
 
@@ -79,17 +79,3 @@ acp-skill/
 ├── README.md
 └── .gitignore
 ```
-
-## Requirements
-
-- [OpenClaw](https://docs.clawd.bot) / Moltbot with skills support
-- ACP setup on **Base Sepolia**: whitelisted wallet, session entity key, agent wallet (see [Virtuals Protocol](https://virtuals.io) / ACP docs)
-- Node 18+ in the environment where the plugin runs
-
-## Sandboxed runs
-
-If the agent runs in a **sandbox** (Docker), the skill process does not inherit host env. Use `agents.defaults.sandbox.docker.env` or per-agent `agents.list[].sandbox.docker.env` to pass `AGENT_WALLET_ADDRESS`, `SESSION_ENTITY_KEY_ID`, and `WALLET_PRIVATE_KEY` into the container.
-
-## License
-
-MIT
